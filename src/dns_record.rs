@@ -1,6 +1,10 @@
-#[derive(Debug)]
+use std::u16;
+
+use crate::utils;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum DnsType {
-    A,
+    A = 1,
     NS,
     MD, //
     MF,
@@ -15,6 +19,7 @@ enum DnsType {
     Hinfo,
     Minfo,
     MX,
+    Txt,
 
     // Types that appear only in question part of a query.
     Axfr,
@@ -23,14 +28,55 @@ enum DnsType {
     AllRecords,
 }
 
-#[derive(Debug)]
+impl From<u16> for DnsType {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => DnsType::A,
+            2 => DnsType::NS,
+            3 => DnsType::MD,
+            4 => DnsType::MF,
+            5 => DnsType::Cname,
+            6 => DnsType::Soa,
+            7 => DnsType::MB,
+            8 => DnsType::MG,
+            9 => DnsType::MR,
+            10 => DnsType::Null,
+            11 => DnsType::Wks,
+            12 => DnsType::Ptr,
+            13 => DnsType::Hinfo,
+            14 => DnsType::Minfo,
+            15 => DnsType::MX,
+            16 => DnsType::Txt,
+            252 => DnsType::Axfr,
+            253 => DnsType::Mailb,
+            254 => DnsType::Maila,
+            255 => DnsType::AllRecords,
+            _ => unreachable!("Couldn't find DNS type for value: {value}"),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum DnsClass {
-    IN,
+    IN = 1,
     CS,
     CH,
     HS,
     // Any Class only appear in question section of a Query
     AnyClass,
+}
+
+impl From<u16> for DnsClass {
+    fn from(value: u16) -> Self {
+        match value {
+            1 => DnsClass::IN,
+            2 => DnsClass::CS,
+            3 => DnsClass::CH,
+            4 => DnsClass::HS,
+            255 => DnsClass::AnyClass,
+            _ => unreachable!("Couldn't find DNS Class for value: {value}"),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -43,7 +89,34 @@ pub struct DnsRecord {
     pub rd_data: String,
 }
 
-pub fn deserialize_record(bytes: &[u8]) -> DnsRecord {
+pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
+    let mut bytes: Vec<u8> = Vec::new();
+
+    for label in record.name.split(".") {
+        let len = label.len() as u8;
+        let content = label.as_bytes();
+        bytes.push(len);
+        bytes.extend(content);
+    }
+    bytes.push(0);
+
+    let serialize_u16 = |bytes: &mut Vec<u8>, value: u16| {
+        bytes.push((value >> 8) as u8);
+        bytes.push(value as u8);
+    };
+
+    serialize_u16(&mut bytes, record.dns_type as u16);
+    serialize_u16(&mut bytes, record.dns_class as u16);
+    // // TTL 32bits
+    // bytes.extend_from_slice(&[0, 0, 0, 0]);
+    //
+    // // RDLENGTH 16 bits
+    // bytes.extend_from_slice(&[0, 0]);
+
+    bytes
+}
+
+pub fn deserialize_record(bytes: &[u8]) -> (DnsRecord, usize) {
     let (mut begin, mut end, mut name) = deserialize_label(bytes, 1, bytes[0] as usize + 1);
 
     while begin != end {
@@ -51,19 +124,23 @@ pub fn deserialize_record(bytes: &[u8]) -> DnsRecord {
         (begin, end, label) = deserialize_label(bytes, begin, end);
         name = format!("{name}.{label}");
     }
-    println!("end: {end}");
-    let dns_type_byte = &bytes[end..end + 2];
+    println!("end: {end} remain bytes: {:?}", &bytes[end..]);
+    let dns_type_value = utils::double_u8_to_u16(bytes, end);
     end += 2;
-    let dns_class_byte = &bytes[end..end + 2];
+    let dns_class_value = utils::double_u8_to_u16(bytes, end);
+    end += 2;
 
-    DnsRecord {
-        name,
-        dns_type: DnsType::A,
-        dns_class: DnsClass::IN,
-        time_to_live: 0,
-        rd_length: 0,
-        rd_data: "".to_string(),
-    }
+    (
+        DnsRecord {
+            name,
+            dns_type: dns_class_value.into(),
+            dns_class: dns_type_value.into(),
+            time_to_live: 0,
+            rd_length: 0,
+            rd_data: "".to_string(),
+        },
+        end,
+    )
 }
 
 fn deserialize_label(bytes: &[u8], begin: usize, end: usize) -> (usize, usize, String) {
@@ -80,8 +157,31 @@ fn test_deserialize() {
     let response = [
         12, 99, 111, 100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1,
     ];
-    let record = deserialize_record(&response);
+    let (record, _) = deserialize_record(&response);
 
     assert_eq!("codecrafters.io".to_string(), record.name);
-    println!("domain: {record:?}");
+    assert_eq!(DnsType::A, record.dns_type);
+    assert_eq!(DnsClass::IN, record.dns_class);
+    println!("record: {record:?}");
+}
+
+#[test]
+fn test_serialize() {
+    let response = [
+        12, 99, 111, 100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1,
+    ]
+    .to_vec();
+
+    let record = DnsRecord {
+        name: "codecrafters.io".to_string(),
+        dns_type: DnsType::A,
+        dns_class: DnsClass::IN,
+        rd_data: "".into(),
+        rd_length: 0,
+        time_to_live: 0,
+    };
+
+    let result = serialize_record(&record);
+
+    assert_eq!(result, response);
 }
