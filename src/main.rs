@@ -1,9 +1,7 @@
 // use serde::{Deserialize, Serialize};
 use std::net::{Ipv4Addr, UdpSocket};
 
-use dns_header::{
-    deserialize_header, serialize_header, DnsHeader, DnsMessageBytes, OpCode, ResponseCode, QR,
-};
+use dns_header::{deserialize_header, serialize_header, DnsHeader, OpCode, ResponseCode, QR};
 use dns_record::{deserialize_record, serialize_record, DnsRecord};
 mod dns_header;
 mod dns_record;

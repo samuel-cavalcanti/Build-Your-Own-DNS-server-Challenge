@@ -66,6 +66,7 @@ impl From<u8> for ResponseCode {
             0 => Self::NoError,
             1 => Self::FormatError,
             2 => Self::ServerFailure,
+            3 => Self::NameError,
             4 => Self::NotImplemented,
             5 => Self::Refused,
             _ => unimplemented!("Response code for {value} isn't implemented "),
