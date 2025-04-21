@@ -125,8 +125,13 @@ pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
     bytes
 }
 
-pub fn deserialize_record(bytes: &[u8], begin: usize) -> (DnsRecord, usize) {
-    let (mut begin, mut end, mut name) = deserialize_label(bytes, begin, bytes[0] as usize + 1);
+pub fn deserialize_record(bytes: &[u8], mut begin: usize) -> (DnsRecord, usize) {
+    let mut end;
+    let mut name;
+    // if bytes[begin - 1] >> 6 == 0b11 {
+    // }
+
+    (begin, end, name) = deserialize_label(bytes, begin, bytes[begin - 1] as usize + 1);
 
     while begin != end {
         let label;
@@ -166,7 +171,7 @@ fn test_deserialize() {
     let response = [
         12, 99, 111, 100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1,
     ];
-    let (record, _) = deserialize_record(&response, 0);
+    let (record, _) = deserialize_record(&response, 1);
 
     assert_eq!("codecrafters.io".to_string(), record.name);
     assert_eq!(DnsType::A, record.dns_type);
