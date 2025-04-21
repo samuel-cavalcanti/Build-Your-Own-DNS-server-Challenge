@@ -1,6 +1,6 @@
 use crate::utils;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DnsHeader {
     pub id: u16,
     pub query: QR,
@@ -17,7 +17,7 @@ pub struct DnsHeader {
     pub additional_count: u16,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum QR {
     Query,
     Response,
@@ -32,7 +32,7 @@ impl From<u8> for QR {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OpCode {
     StandardQuery = 0,
     InverseQuery = 1,
@@ -51,7 +51,7 @@ impl From<u8> for OpCode {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ResponseCode {
     NoError = 0,
     FormatError = 1,

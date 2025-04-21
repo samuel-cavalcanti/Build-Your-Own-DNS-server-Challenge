@@ -2,7 +2,7 @@ use std::u16;
 
 use crate::utils;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DnsType {
     A = 1,
     NS,
@@ -56,7 +56,7 @@ impl From<u16> for DnsType {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum DnsClass {
     IN = 1,
     CS,
@@ -79,7 +79,7 @@ impl From<u16> for DnsClass {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct DnsRecord {
     pub name: String,
     pub dns_type: DnsType,
@@ -125,8 +125,8 @@ pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
     bytes
 }
 
-pub fn deserialize_record(bytes: &[u8]) -> (DnsRecord, usize) {
-    let (mut begin, mut end, mut name) = deserialize_label(bytes, 1, bytes[0] as usize + 1);
+pub fn deserialize_record(bytes: &[u8], begin: usize) -> (DnsRecord, usize) {
+    let (mut begin, mut end, mut name) = deserialize_label(bytes, begin, bytes[0] as usize + 1);
 
     while begin != end {
         let label;
@@ -166,7 +166,7 @@ fn test_deserialize() {
     let response = [
         12, 99, 111, 100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1,
     ];
-    let (record, _) = deserialize_record(&response);
+    let (record, _) = deserialize_record(&response, 0);
 
     assert_eq!("codecrafters.io".to_string(), record.name);
     assert_eq!(DnsType::A, record.dns_type);

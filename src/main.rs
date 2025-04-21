@@ -7,7 +7,7 @@ mod dns_header;
 mod dns_record;
 mod utils;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 struct DnsMsg {
     header: DnsHeader,
     questions: Vec<DnsRecord>,
@@ -42,11 +42,13 @@ fn deserialize<'a>(msg_bytes: &'a [u8]) -> DnsMsg {
 
     let deserialize_records = |n_records: u16, mut bytes: &'a [u8]| -> (Vec<DnsRecord>, &'a [u8]) {
         let mut records = Vec::with_capacity(n_records as usize);
+        let mut index = 0;
         for _i in 0..n_records {
-            let (record, index) = deserialize_record(bytes);
+            let record;
+            (record, index) = deserialize_record(bytes, index);
             println!("record: {record:?} index: {index}");
             records.push(record);
-            bytes = &bytes[index..]
+            // bytes = &bytes[index..]
         }
 
         (records, bytes)
@@ -121,4 +123,46 @@ fn main() {
             }
         }
     }
+}
+
+#[test]
+fn test_serialize() {
+    let request = [
+        81, 180, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 97, 98, 99, 17, 108, 111, 110, 103, 97, 115, 115,
+        100, 111, 109, 97, 105, 110, 110, 97, 109, 101, 3, 99, 111, 109, 0, 0, 1, 0, 1, 3, 100,
+        101, 102, 192, 16, 0, 1, 0, 1,
+    ];
+
+    let msg = deserialize(&request);
+
+    let expected_msg = DnsMsg {
+        header: DnsHeader {
+            id: 20916,
+            query: QR::Query,
+            op_code: OpCode::StandardQuery,
+            aa: false,
+            tc: false,
+            rd: true,
+            ra: false,
+            z: 0,
+            response_code: ResponseCode::NoError,
+            questions_count: 1,
+            answers_count: 0,
+            authority_count: 0,
+            additional_count: 0,
+        },
+        questions: vec![DnsRecord {
+            name: "abc.longassdomainname.com".into(),
+            dns_type: dns_record::DnsType::A,
+            dns_class: dns_record::DnsClass::IN,
+            time_to_live: 0,
+            rd_length: 0,
+            rd_data: vec![],
+        }],
+        answers: vec![],
+        authority: vec![],
+        additional: vec![],
+    };
+
+    assert_eq!(expected_msg, msg);
 }
