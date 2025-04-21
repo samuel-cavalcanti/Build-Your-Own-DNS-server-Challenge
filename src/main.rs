@@ -1,5 +1,5 @@
 // use serde::{Deserialize, Serialize};
-use std::net::UdpSocket;
+use std::net::{Ipv4Addr, UdpSocket};
 
 use dns_header::{deserialize_header, serialize_header, DnsHeader, DnsMessageBytes, QR};
 use dns_record::{deserialize_record, serialize_record, DnsRecord};
@@ -21,6 +21,11 @@ fn serialize(msg: &DnsMsg) -> Vec<u8> {
     let mut bytes = serialize_header(&msg.header).to_vec();
 
     for record in &msg.questions {
+        let record_bytes = serialize_record(record);
+        bytes.extend_from_slice(&record_bytes);
+    }
+
+    for record in &msg.answers {
         let record_bytes = serialize_record(record);
         bytes.extend_from_slice(&record_bytes);
     }
@@ -77,13 +82,32 @@ fn main() {
                 println!("Received all bytes {:?}", &buf[..size]);
                 let mut dns_msg = deserialize(&buf[0..size]);
                 println!("Received msg: {dns_msg:#?}");
-                // for record in dns_msg.questions {
-                //
-                // }
+                let mut answers = Vec::with_capacity(dns_msg.header.questions_count as usize);
+                let default_anwser_ip = Ipv4Addr::new(8, 8, 8, 8);
+
+                for record in &dns_msg.questions {
+                    let ip_bytes = default_anwser_ip.octets();
+                    let answer = DnsRecord {
+                        name: record.name.clone(),
+                        dns_type: record.dns_type,
+                        dns_class: record.dns_class,
+                        time_to_live: 60,
+                        rd_length: ip_bytes.len() as u16,
+                        rd_data: ip_bytes.to_vec(),
+                    };
+
+                    answers.push(answer);
+                }
                 dns_msg.header.query = QR::Response;
+                dns_msg.header.answers_count = answers.len() as u16;
+                dns_msg.answers = answers;
                 let response = serialize(&dns_msg);
 
-                println!("response size {}", response.len());
+                println!(
+                    "response size {}, response bytes: {:?}",
+                    response.len(),
+                    response
+                );
                 udp_socket
                     .send_to(&response, source)
                     .expect("Failed to send response");

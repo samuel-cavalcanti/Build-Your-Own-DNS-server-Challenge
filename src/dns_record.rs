@@ -3,7 +3,7 @@ use std::u16;
 use crate::utils;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum DnsType {
+pub enum DnsType {
     A = 1,
     NS,
     MD, //
@@ -22,7 +22,7 @@ enum DnsType {
     Txt,
 
     // Types that appear only in question part of a query.
-    Axfr,
+    Axfr = 252,
     Mailb,
     Maila,
     AllRecords,
@@ -57,13 +57,13 @@ impl From<u16> for DnsType {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum DnsClass {
+pub enum DnsClass {
     IN = 1,
     CS,
     CH,
     HS,
     // Any Class only appear in question section of a Query
-    AnyClass,
+    AnyClass = 255,
 }
 
 impl From<u16> for DnsClass {
@@ -86,7 +86,7 @@ pub struct DnsRecord {
     pub dns_class: DnsClass,
     pub time_to_live: i32,
     pub rd_length: u16,
-    pub rd_data: String,
+    pub rd_data: Vec<u8>,
 }
 
 pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
@@ -96,22 +96,31 @@ pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
         let len = label.len() as u8;
         let content = label.as_bytes();
         bytes.push(len);
-        bytes.extend(content);
+        bytes.extend_from_slice(content);
     }
     bytes.push(0);
 
     let serialize_u16 = |bytes: &mut Vec<u8>, value: u16| {
-        bytes.push((value >> 8) as u8);
-        bytes.push(value as u8);
+        bytes.extend_from_slice(&[(value >> 8) as u8, value as u8])
     };
 
     serialize_u16(&mut bytes, record.dns_type as u16);
     serialize_u16(&mut bytes, record.dns_class as u16);
     // // TTL 32bits
-    // bytes.extend_from_slice(&[0, 0, 0, 0]);
-    //
+    if record.time_to_live > 0 {
+        bytes.extend_from_slice(&[
+            (record.time_to_live >> 24) as u8,
+            (record.time_to_live >> 16) as u8,
+            (record.time_to_live >> 8) as u8,
+            record.time_to_live as u8,
+        ]);
+    }
+
     // // RDLENGTH 16 bits
-    // bytes.extend_from_slice(&[0, 0]);
+    if record.rd_length > 0 {
+        serialize_u16(&mut bytes, record.rd_length);
+        bytes.extend(&record.rd_data);
+    }
 
     bytes
 }
@@ -137,7 +146,7 @@ pub fn deserialize_record(bytes: &[u8]) -> (DnsRecord, usize) {
             dns_class: dns_type_value.into(),
             time_to_live: 0,
             rd_length: 0,
-            rd_data: "".to_string(),
+            rd_data: Vec::new(),
         },
         end,
     )
@@ -176,7 +185,7 @@ fn test_serialize() {
         name: "codecrafters.io".to_string(),
         dns_type: DnsType::A,
         dns_class: DnsClass::IN,
-        rd_data: "".into(),
+        rd_data: Vec::new(),
         rd_length: 0,
         time_to_live: 0,
     };
