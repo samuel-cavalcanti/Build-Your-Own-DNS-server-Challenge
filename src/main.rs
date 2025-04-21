@@ -1,7 +1,9 @@
 // use serde::{Deserialize, Serialize};
 use std::net::{Ipv4Addr, UdpSocket};
 
-use dns_header::{deserialize_header, serialize_header, DnsHeader, DnsMessageBytes, QR};
+use dns_header::{
+    deserialize_header, serialize_header, DnsHeader, DnsMessageBytes, OpCode, ResponseCode, QR,
+};
 use dns_record::{deserialize_record, serialize_record, DnsRecord};
 mod dns_header;
 mod dns_record;
@@ -101,6 +103,9 @@ fn main() {
                 dns_msg.header.query = QR::Response;
                 dns_msg.header.answers_count = answers.len() as u16;
                 dns_msg.answers = answers;
+                if dns_msg.header.op_code != OpCode::StandardQuery {
+                    dns_msg.header.response_code = ResponseCode::NotImplemented;
+                }
                 let response = serialize(&dns_msg);
 
                 println!(
