@@ -37,6 +37,7 @@ pub enum OpCode {
     StandardQuery = 0,
     InverseQuery = 1,
     ServerStatus = 2,
+    NotImplemented,
 }
 
 impl From<u8> for OpCode {
@@ -45,7 +46,7 @@ impl From<u8> for OpCode {
             0 => Self::StandardQuery,
             1 => Self::InverseQuery,
             2 => Self::ServerStatus,
-            _ => unimplemented!("Op code for {value} isn't implemented "),
+            _ => Self::NotImplemented,
         }
     }
 }
