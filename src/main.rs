@@ -1,54 +1,47 @@
 // use serde::{Deserialize, Serialize};
 use std::net::UdpSocket;
 
+use dns_header::{deserialize_header, serialize_header, DnsHeader, DnsMessageBytes};
+use dns_record::{deserialize_record, DnsRecord};
+mod dns_header;
+mod dns_record;
+
 #[derive(Debug)]
-struct DsnMsg {
-    id: i16,
-    query: bool,
-    op_code: u8,
-    aa: bool,
-    tc: bool,
-    rd: bool,
-    ra: bool,
-    z: u8,
-    response_code: u8,
-    questions_count: u16,
-    answers_count: u16,
-    authority_count: u16,
-    additional_count: u16,
+struct DnsMsg {
+    header: DnsHeader,
+    questions: Vec<DnsRecord>,
+    answers: Vec<DnsRecord>,
+    authority: Vec<DnsRecord>,
+    additional: Vec<DnsRecord>,
 }
 
-type DnsMessageBytes = [u8; 12];
-
-fn serialize(msg: &DsnMsg) -> DnsMessageBytes {
-    let mut bytes = [0; 12];
-
-    bytes[0] = (msg.id >> 8) as u8;
-    bytes[1] = msg.id as u8;
-    bytes[2] |= (msg.query as u8) << 7;
-    bytes[2] |= msg.op_code << 3;
-    bytes[2] |= (msg.aa as u8) << 2;
-    bytes[2] |= (msg.tc as u8) << 1;
-    bytes[2] |= msg.rd as u8;
-
-    bytes[3] |= (msg.ra as u8) << 7;
-    bytes[3] |= msg.z << 4;
-    bytes[3] |= msg.response_code;
 
 
-    bytes[4] |= (msg.questions_count >> 8) as u8;
-    bytes[5] |= msg.questions_count as u8;
+fn serialize(msg: &DnsMsg) -> DnsMessageBytes {
+    serialize_header(&msg.header)
+}
 
-    bytes[6] |= (msg.answers_count >> 8) as u8;
-    bytes[7] |= msg.answers_count as u8;
 
-    bytes[8] |= (msg.authority_count >> 8) as u8;
-    bytes[9] |= msg.authority_count as u8;
 
-    bytes[10] |= (msg.additional_count >> 8) as u8;
-    bytes[11] |= msg.additional_count as u8;
+fn deserialize(msg_bytes: &[u8]) -> DnsMsg {
+    let header = deserialize_header(msg_bytes);
 
-    bytes
+    let size = msg_bytes.len();
+    let bytes = &msg_bytes[12..size];
+
+    for _i in 0..header.questions_count {
+        let record = deserialize_record(&bytes);
+    }
+
+    println!("msg: {:?}", &msg_bytes[12..size]);
+
+    DnsMsg {
+        header,
+        questions: Vec::new(),
+        answers: Vec::new(),
+        authority: Vec::new(),
+        additional: Vec::new(),
+    }
 }
 
 fn main() {
@@ -62,7 +55,7 @@ fn main() {
     loop {
         match udp_socket.recv_from(&mut buf) {
             Ok((size, source)) => {
-                let msg = DsnMsg {
+                let _msg = DnsHeader {
                     id: 1234,
                     query: true,
                     op_code: 0,
@@ -78,7 +71,10 @@ fn main() {
                     additional_count: 0,
                 };
                 println!("Received {} bytes from {}", size, source);
-                let response = serialize(&msg);
+                let received_msg = deserialize(&buf[0..size]);
+                println!("Received msg: {received_msg:#?}");
+                let response = serialize(&received_msg);
+
                 udp_socket
                     .send_to(&response, source)
                     .expect("Failed to send response");
@@ -91,26 +87,3 @@ fn main() {
     }
 }
 
-#[test]
-fn test_serialize() {
-    let response: [u8; 12] = [0x04, 0xd2, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-    let msg = DsnMsg {
-        id: 1234,
-        query: true,
-        op_code: 0,
-        aa: false,
-        tc: false,
-        rd: false,
-        ra: false,
-        z: 0,
-        response_code: 0,
-        questions_count: 0,
-        answers_count: 0,
-        authority_count: 0,
-        additional_count: 0,
-    };
-    let my_res = serialize(&msg);
-
-    assert_eq!(response, my_res);
-}
