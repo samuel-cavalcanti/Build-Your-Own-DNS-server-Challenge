@@ -38,11 +38,15 @@ fn deserialize<'a>(msg_bytes: &'a [u8]) -> DnsMsg {
 
     let size = msg_bytes.len();
     let bytes = msg_bytes;
-    println!("header:{header:?} msg: {:?}", &msg_bytes[12..size]);
+    const HEADER_N_BYTES: usize = 12;
+    println!(
+        "header:{header:?} msg: {:?}",
+        &msg_bytes[HEADER_N_BYTES + 1..]
+    );
 
-    let deserialize_records = |n_records: u16, bytes: &'a [u8]| -> (Vec<DnsRecord>, &'a [u8]) {
+    let deserialize_records = |n_records: u16, index: usize| -> (Vec<DnsRecord>, usize) {
         let mut records = Vec::with_capacity(n_records as usize);
-        let mut index = 13;
+        let mut index = index;
         for _i in 0..n_records {
             let record;
             (record, index) = deserialize_record(bytes, index);
@@ -53,21 +57,21 @@ fn deserialize<'a>(msg_bytes: &'a [u8]) -> DnsMsg {
             // bytes = &bytes[index..]
         }
 
-        (records, bytes)
+        (records, index)
     };
 
-    let (questions, _bytes) = deserialize_records(header.questions_count, bytes);
-    // let (answers, bytes) = deserialize_records(header.answers_count, bytes);
-    // let (authority, bytes) = deserialize_records(header.authority_count, bytes);
-    // let (additional, bytes) = deserialize_records(header.additional_count, bytes);
-    println!("msg: {:?}", _bytes);
+    let (questions, index) = deserialize_records(header.questions_count, HEADER_N_BYTES + 1);
+    let (answers, index) = deserialize_records(header.answers_count, index);
+    let (authority, index) = deserialize_records(header.authority_count, index);
+    let (additional, index) = deserialize_records(header.additional_count, index);
+    println!("msg: {:?}", &bytes[index..]);
 
     DnsMsg {
         header,
         questions,
-        answers: Vec::new(),
-        authority: Vec::new(),
-        additional: Vec::new(),
+        answers,
+        authority,
+        additional,
     }
 }
 
