@@ -1,5 +1,3 @@
-use std::u16;
-
 use crate::utils;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -79,7 +77,7 @@ impl From<u16> for DnsClass {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct DnsRecord {
     pub name: String,
     pub dns_type: DnsType,
@@ -125,7 +123,7 @@ pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
     bytes
 }
 
-pub fn deserialize_record(bytes: &[u8], mut begin: usize) -> (DnsRecord, usize) {
+pub fn deserialize_record(bytes: &[u8], mut begin: usize, have_rd: bool) -> (DnsRecord, usize) {
     let mut end;
     let mut name;
 
@@ -136,27 +134,41 @@ pub fn deserialize_record(bytes: &[u8], mut begin: usize) -> (DnsRecord, usize) 
         let label;
         (begin, end, label) = deserialize_label(bytes, begin, end);
         name = format!("{name}.{label}");
-        println!("name: {name}");
     }
     let dns_type_value = utils::double_u8_to_u16(bytes, end);
     end += 2;
     let dns_class_value = utils::double_u8_to_u16(bytes, end);
     end += 2;
 
+    let (rd_length, rd_data, ttl) = if have_rd {
+        let ttl = utils::bytes_to_i32(bytes, end);
+        end += 4;
+        let rd_length = utils::double_u8_to_u16(bytes, end);
+        end += 2;
+        let rd_data = bytes[end..end + rd_length as usize].to_vec();
+        end += rd_length as usize;
+
+        (rd_length, rd_data, ttl)
+    } else {
+        (0, Vec::new(), 0)
+    };
+
     (
         DnsRecord {
             name,
             dns_type: dns_class_value.into(),
             dns_class: dns_type_value.into(),
-            time_to_live: 0,
-            rd_length: 0,
-            rd_data: Vec::new(),
+            time_to_live: ttl,
+            rd_length,
+            rd_data,
         },
         end,
     )
 }
 
-fn deserialize_label(bytes: &[u8], mut begin: usize, mut end: usize) -> (usize, usize, String) {
+fn deserialize_label(bytes: &[u8], begin: usize, end: usize) -> (usize, usize, String) {
+    let mut begin = begin;
+    let mut end = end;
     let pointer_bytes = utils::double_u8_to_u16(bytes, begin - 1);
     let is_a_pointer = pointer_bytes & (0b11 << 14) != 0;
     if is_a_pointer {
@@ -179,7 +191,9 @@ fn test_deserialize() {
     let response = [
         12, 99, 111, 100, 101, 99, 114, 97, 102, 116, 101, 114, 115, 2, 105, 111, 0, 0, 1, 0, 1,
     ];
-    let (record, _) = deserialize_record(&response, 1);
+    let (record, _) = deserialize_record(&response, 1, false);
+
+
 
     assert_eq!("codecrafters.io".to_string(), record.name);
     assert_eq!(DnsType::A, record.dns_type);

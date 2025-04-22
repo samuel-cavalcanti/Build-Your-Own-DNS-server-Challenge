@@ -1,6 +1,6 @@
 use crate::utils;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DnsHeader {
     pub id: u16,
     pub query: QR,
@@ -74,8 +74,6 @@ impl From<u8> for ResponseCode {
         }
     }
 }
-
-pub type DnsMessageBytes = [u8; 12];
 
 pub fn serialize_header(msg: &DnsHeader) -> [u8; 12] {
     let mut bytes = [0; 12];
