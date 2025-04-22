@@ -128,17 +128,16 @@ pub fn serialize_record(record: &DnsRecord) -> Vec<u8> {
 pub fn deserialize_record(bytes: &[u8], mut begin: usize) -> (DnsRecord, usize) {
     let mut end;
     let mut name;
-    // if bytes[begin - 1] >> 6 == 0b11 {
-    // }
 
-    (begin, end, name) = deserialize_label(bytes, begin, bytes[begin - 1] as usize + 1);
+    let size = bytes[begin - 1] as usize;
+    (begin, end, name) = deserialize_label(bytes, begin, begin + size);
 
     while begin != end {
         let label;
         (begin, end, label) = deserialize_label(bytes, begin, end);
         name = format!("{name}.{label}");
+        println!("name: {name}");
     }
-    println!("end: {end} remain bytes: {:?}", &bytes[end..]);
     let dns_type_value = utils::double_u8_to_u16(bytes, end);
     end += 2;
     let dns_class_value = utils::double_u8_to_u16(bytes, end);
@@ -157,7 +156,16 @@ pub fn deserialize_record(bytes: &[u8], mut begin: usize) -> (DnsRecord, usize) 
     )
 }
 
-fn deserialize_label(bytes: &[u8], begin: usize, end: usize) -> (usize, usize, String) {
+fn deserialize_label(bytes: &[u8], mut begin: usize, mut end: usize) -> (usize, usize, String) {
+    let pointer_bytes = utils::double_u8_to_u16(bytes, begin - 1);
+    let is_a_pointer = pointer_bytes & (0b11 << 14) != 0;
+    if is_a_pointer {
+        let offset = (pointer_bytes & 0b0011111111111111) as usize;
+        begin = offset + 1;
+        let size = bytes[begin - 1] as usize;
+        end = begin + size;
+    }
+
     let sub_string = String::from_utf8_lossy(&bytes[begin..end]).to_string();
     let begin = end + 1;
     let size = bytes[end] as usize;

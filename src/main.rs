@@ -37,20 +37,19 @@ fn deserialize<'a>(msg_bytes: &'a [u8]) -> DnsMsg {
     let header = deserialize_header(msg_bytes);
 
     let size = msg_bytes.len();
-    let bytes = &msg_bytes[12..size];
+    let bytes = msg_bytes;
     println!("header:{header:?} msg: {:?}", &msg_bytes[12..size]);
 
     let deserialize_records = |n_records: u16, bytes: &'a [u8]| -> (Vec<DnsRecord>, &'a [u8]) {
         let mut records = Vec::with_capacity(n_records as usize);
-        let mut index = 1;
+        let mut index = 13;
         for _i in 0..n_records {
             let record;
             (record, index) = deserialize_record(bytes, index);
-            println!(
-                "record: {record:?} index: {index}, remain: {:?}",
-                &bytes[index..]
-            );
+            println!("record: {record:?} index: {index}",);
+            println!("remain: {:?}", &bytes[index..]);
             records.push(record);
+            index += 1;
             // bytes = &bytes[index..]
         }
 
@@ -175,8 +174,8 @@ fn test_serialize() {
         additional: vec![],
     };
 
-    // let msg = deserialize(&request);
-    // assert_eq!(expected_msg, msg);
+    let msg = deserialize(&request);
+    assert_eq!(expected_msg, msg);
     //
     let rest = serialize(&expected_msg);
     let result = [
